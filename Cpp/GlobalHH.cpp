@@ -5,36 +5,26 @@
 #include <chrono>
 
 
-GlobalHH::GlobalHH(float memory_kb){
-
-    // memory allocation ratio for count-min
+GlobalHH::GlobalHH(float memory_kb) {
     cm_ratio = 0.4;
-
-    // CountMin
     float cm_memo_kb = memory_kb * cm_ratio;
     count_min = new CountMin(cm_memo_kb);
-
     float ss_memo_kb = memory_kb - cm_memo_kb;
-    max_num = (ss_memo_kb * 1024 * 8) / 96; // 64 bits key + 32 bits counter
-
+    max_num = (ss_memo_kb * 1024 * 8) / 96;
     space_saving.reserve(max_num);
 }
 
 
 void GlobalHH::update(uint32_t x, uint32_t y) {
-
     count_min->update(x);
-
-    uint64_t combined_xy = combine_xy(x,y);
-
+    uint64_t combined_xy = combine_xy(x, y);
     auto it = key_to_index.find(combined_xy);
     if (it != key_to_index.end()) {
         uint32_t index = it->second;
-        if (space_saving[index].key == combined_xy){
+        if (space_saving[index].key == combined_xy) {
             space_saving[index].counter++;
             return;
-        }
-        else{
+        } else {
             std::cerr << "GlobalHH: SpaceSaving index map error, falling back to linear search." << std::endl;
             for (uint32_t i = 0; i < space_saving.size(); ++i) {
                 if (space_saving[i].key == combined_xy) {
@@ -74,15 +64,11 @@ void GlobalHH::replace_min_with_new_key(uint64_t new_key) {
             min_index = i;
         }
     }
-
     key_to_index.erase(space_saving[min_index].key);
-
     space_saving[min_index].key = new_key;
     space_saving[min_index].counter += 1;
-
     key_to_index[new_key] = min_index;
 }
-
 
 
 /**
@@ -97,13 +83,9 @@ std::pair<std::map<uint32_t, uint32_t>,
         std::map<uint32_t, std::map<uint32_t, uint32_t>>> GlobalHH::query(uint32_t heavy_hitter_th, float phi) {
     std::map<uint32_t, uint32_t> heavy_hitters;
     std::map<uint32_t, std::map<uint32_t, uint32_t>> quad_elements;
-
-    // Iterate through all entries
-    for (auto& entry : space_saving) {
-
+    for (auto &entry: space_saving) {
         uint64_t combined_xy = entry.key;
         uint32_t xy_count = entry.counter;
-
         std::pair<uint32_t, uint32_t> split_pair = split_xy(combined_xy);
         uint32_t x = split_pair.first;
         uint32_t y = split_pair.second;
@@ -124,14 +106,38 @@ std::pair<std::map<uint32_t, uint32_t>,
 }
 
 
+/**
+ * @brief Queries the Sketch for a single specified flow.
+ * @param flow_id The ID of the flow to query (uint32_t).
+ * @return A pair of values:
+ * 1st: estimated frequency of the specified flow (uint32_t).
+ * 2nd: map of elements for this flow (element id -> element frequency).
+ */
+std::pair<uint32_t, std::map<uint32_t, uint32_t>> GlobalHH::querySingleFlow(uint32_t flow_id) {
 
+    uint32_t estimated_frequency = 0;
+    std::map<uint32_t, uint32_t> quad_elements;
+    estimated_frequency = count_min->query(flow_id);
+    // Iterate through all entries
+    for (auto &entry: space_saving) {
+        uint64_t combined_xy = entry.key;
+        uint32_t xy_count = entry.counter;
+        std::pair<uint32_t, uint32_t> split_pair = split_xy(combined_xy);
+        uint32_t x = split_pair.first;
+        uint32_t y = split_pair.second;
+        if (x == flow_id) {
+            quad_elements[y] = xy_count;
+        }
+    }
+    return {estimated_frequency, quad_elements};
+}
 
 
 
 void GlobalHH::evaluation(const std::vector<std::pair<uint32_t, uint32_t>> &dataset,
-                      const std::map<uint32_t, uint32_t> &flows,
-                      std::map<uint32_t, std::map<uint32_t, uint32_t>> quadratic_eles,
-                      uint32_t heavy_hitter_th, float ele_th_phi) {
+                          const std::map<uint32_t, uint32_t> &flows,
+                          std::map<uint32_t, std::map<uint32_t, uint32_t>> quadratic_eles,
+                          uint32_t heavy_hitter_th, float ele_th_phi) {
 
     std::cout << "\n" << "GlobalHH:" << std::endl;
 
@@ -146,22 +152,37 @@ void GlobalHH::evaluation(const std::vector<std::pair<uint32_t, uint32_t>> &data
     std::cout << " - Update Throughput: " << update_throughput_Mdps << " Mdps" << std::endl;
 
 
-    // Query the sketch for results
     auto start_query = std::chrono::high_resolution_clock::now();
     auto [queried_heavy_hitters, queried_quad_elements] = query(heavy_hitter_th, ele_th_phi);
     auto end_query = std::chrono::high_resolution_clock::now();
     auto query_duration = end_query - start_query;
-    std::cout << " - Query Time: " << std::chrono::duration<double, std::milli>(query_duration).count() << " ms" << std::endl;
+    std::cout << " - Full Query Time: " << std::chrono::duration<double, std::milli>(query_duration).count()
+              << " ms" << std::endl;
 
-    // Find true heavy hitters and their hot quadratic elements
+
+    std::vector<double> single_query_times;
+    single_query_times.reserve(flows.size());
+    for (const auto &[flow_id, flow_size]: flows) {
+        auto single_start = std::chrono::high_resolution_clock::now();
+        auto [estimated_freq, quad_map] = querySingleFlow(flow_id);
+        auto single_end = std::chrono::high_resolution_clock::now();
+        auto duration_us = std::chrono::duration<double, std::micro>(single_end - single_start).count();
+        single_query_times.push_back(duration_us);
+    }
+    double avg_query_time = 0.0;
+    if (!single_query_times.empty()) {
+        double total_time = std::accumulate(single_query_times.begin(),
+                                            single_query_times.end(), 0.0);
+        avg_query_time = total_time / single_query_times.size();
+    }
+    std::cout << " - Avg. Single-Flow Query Time: " << avg_query_time << " us (micro second)" << std::endl;
+
+
     std::map<uint32_t, uint32_t> true_heavy_hitters;
     std::map<uint32_t, std::map<uint32_t, uint32_t>> true_hot_quad_elements;
-
     for (const auto &[flow_id, flow_size]: flows) {
         if (flow_size >= heavy_hitter_th) {
             true_heavy_hitters[flow_id] = flow_size;
-
-            // Find true hot quadratic elements for this heavy hitter
             if (quadratic_eles.count(flow_id)) {
                 for (const auto &[ele_id, ele_size]: quadratic_eles.at(flow_id)) {
                     if (ele_size >= ele_th_phi * flow_size)
@@ -199,16 +220,13 @@ void GlobalHH::evaluation(const std::vector<std::pair<uint32_t, uint32_t>> &data
 
     float ele_are_sum = 0.0f;
     uint32_t ele_true_positives = 0;
-    uint32_t total_queried_hot_ele_count = 0; // queried hot quadratic element count
-    uint32_t total_true_hot_ele_count = 0; // true hot quadratic element count
-
+    uint32_t total_queried_hot_ele_count = 0;
+    uint32_t total_true_hot_ele_count = 0;
 
     for (const auto &[flow_id, queried_elements]: queried_quad_elements) {
         total_queried_hot_ele_count += queried_elements.size();
     }
 
-
-    // Calculate ARE and True Positives
     for (const auto &[flow_id, true_hot_elements]: true_hot_quad_elements) {
         if (queried_quad_elements.count(flow_id)) {
             const auto &queried_elements = queried_quad_elements.at(flow_id);
@@ -224,16 +242,16 @@ void GlobalHH::evaluation(const std::vector<std::pair<uint32_t, uint32_t>> &data
     }
 
 
-
     float ele_are = (ele_true_positives > 0) ? ele_are_sum / ele_true_positives : 0.0f;
     float ele_precision = (total_queried_hot_ele_count > 0) ? static_cast<float>(ele_true_positives) /
                                                               total_queried_hot_ele_count : 0.0f;
-    float ele_recall = (total_true_hot_ele_count > 0) ? static_cast<float>(ele_true_positives) / total_true_hot_ele_count
+    float ele_recall = (total_true_hot_ele_count > 0) ? static_cast<float>(ele_true_positives) /
+                                                        total_true_hot_ele_count
                                                       : 0.0f;
     float ele_f1 = (ele_precision + ele_recall > 0) ? 2 * (ele_precision * ele_recall) / (ele_precision + ele_recall)
                                                     : 0.0f;
 
-    std::cout << " - Heavy Quadratic Ele Metrics | ";
+    std::cout << " - Heavy Quadratic Element Metrics | ";
     std::cout << "ARE: " << ele_are << ", ";
     std::cout << "F1: " << ele_f1 << "\n";
 

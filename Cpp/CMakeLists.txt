@@ -9,9 +9,6 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CMAKE_CXX_FLAGS_RELEASE}")
 
 add_executable(HH_QuadraticEle main.cpp
         MurmurHash3.cpp
-        CountMin.cpp
-        header/DUET.h
-        DUET.cpp
         header/DualSketch.h
         DualSketch.cpp
         header/utils.h
@@ -20,8 +17,16 @@ add_executable(HH_QuadraticEle main.cpp
         GlobalHH.cpp
         header/TwoDMisraGries.h
         TwoDMisraGries.cpp
-        header/CSSCHH.h
-        CSSCHH.cpp
+        header/CocoSketch.h
+        CocoSketch.cpp
+        header/HyperUSS.h
+        HyperUSS.cpp
+        header/DUET_CU.h
+        DUET_CU.cpp
+        header/CUSketch.h
+        CUSketch.cpp
+        header/CountMin.h
+        CountMin.cpp
 )
 
 

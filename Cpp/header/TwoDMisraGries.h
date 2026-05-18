@@ -46,6 +46,8 @@ public:
     std::pair<std::map<uint32_t, uint32_t>,
             std::map<uint32_t, std::map<uint32_t, uint32_t>>> query(uint32_t heavy_hitter_th, float phi);
 
+    std::pair<uint32_t, std::map<uint32_t, uint32_t>> querySingleFlow(uint32_t flow_id);
+
     void evaluation(const std::vector<std::pair<uint32_t, uint32_t>>& dataset,
                     const std::map<uint32_t, uint32_t>& flows,
                     std::map<uint32_t, std::map<uint32_t, uint32_t>> quadratic_eles,

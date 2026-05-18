@@ -8,15 +8,9 @@
 
 TwoDMisraGries::TwoDMisraGries(float memory_kb) {
 
-    s2 = 8; // length for each inner list
-
-    // 2 fields: heavy hitter key and frequency, each is 32 bits
+    s2 = 8;
     uint32_t outer_bits = 32 + 32;
-
-    // 2 fields: Element key and frequency, each is 32 bits
     const uint32_t inner_bits = 32 + 32;
-
-    // heavy hitter key + frequency + a list for elements
     uint32_t bit_sum_4_outer_cell = outer_bits + (s2 * inner_bits);
 
     // Calculate 's1', the length of outer list
@@ -67,7 +61,6 @@ void TwoDMisraGries::update(uint32_t x, uint32_t y) {
                 if (pair.second.freq_outer == 0) {
                     keys_to_remove.push_back(pair.first);
                 } else{
-                    // random choose an item in inner list, decrease its freq
                     std::random_device rd;
                     std::mt19937 gen(rd());
                     std::vector<InnerStruct>& inner_list = pair.second.inner_list;
@@ -164,11 +157,41 @@ std::pair<std::map<uint32_t, uint32_t>,
 
 
 
+/**
+ * @brief Queries the Sketch for a single specified flow.
+ * @param flow_id The ID of the flow to query (uint32_t).
+ * @return A pair of values:
+ * 1st: estimated frequency of the specified flow (uint32_t).
+ * 2nd: map of elements for this flow (element id -> element frequency).
+ */
+std::pair<uint32_t, std::map<uint32_t, uint32_t>> TwoDMisraGries::querySingleFlow(uint32_t flow_id) {
+
+    uint32_t estimated_frequency = 0;
+    std::map<uint32_t, uint32_t> quad_elements;
+    // Find the flow in outer_map
+    auto it = outer_map.find(flow_id);
+
+    if (it != outer_map.end()) {
+        // Case 1: Flow exists, get its frequency
+        estimated_frequency = it->second.freq_outer;
+
+        // Get all inner elements for this flow
+        for (const auto& inner_entry : it->second.inner_list) {
+            quad_elements[inner_entry.key_inner] = inner_entry.freq_inner;
+        }
+    }
+
+    return {estimated_frequency, quad_elements};
+}
+
+
+
+
 
 void TwoDMisraGries::evaluation(const std::vector<std::pair<uint32_t, uint32_t>> &dataset,
-                          const std::map<uint32_t, uint32_t> &flows,
-                          std::map<uint32_t, std::map<uint32_t, uint32_t>> quadratic_eles,
-                          uint32_t heavy_hitter_th, float ele_th_phi) {
+                                const std::map<uint32_t, uint32_t> &flows,
+                                std::map<uint32_t, std::map<uint32_t, uint32_t>> quadratic_eles,
+                                uint32_t heavy_hitter_th, float ele_th_phi) {
 
     std::cout << "\n" << "2D-MG:" << std::endl;
 
@@ -183,22 +206,36 @@ void TwoDMisraGries::evaluation(const std::vector<std::pair<uint32_t, uint32_t>>
     std::cout << " - Update Throughput: " << update_throughput_Mdps << " Mdps" << std::endl;
 
 
-    // Query the sketch for results
     auto start_query = std::chrono::high_resolution_clock::now();
     auto [queried_heavy_hitters, queried_quad_elements] = query(heavy_hitter_th, ele_th_phi);
     auto end_query = std::chrono::high_resolution_clock::now();
     auto query_duration = end_query - start_query;
-    std::cout << " - Query Time: " << std::chrono::duration<double, std::milli>(query_duration).count() << " ms" << std::endl;
+    std::cout << " - Full Query Time: " << std::chrono::duration<double, std::milli>(query_duration).count() << " ms" << std::endl;
 
-    // Find true heavy hitters and their hot quadratic elements
+
+    std::vector<double> single_query_times;
+    single_query_times.reserve(flows.size());
+    for (const auto &[flow_id, flow_size]: flows) {
+        auto single_start = std::chrono::high_resolution_clock::now();
+        auto [estimated_freq, quad_map] = querySingleFlow(flow_id);
+        auto single_end = std::chrono::high_resolution_clock::now();
+        auto duration_us = std::chrono::duration<double, std::micro>(single_end - single_start).count();
+        single_query_times.push_back(duration_us);
+    }
+    double avg_query_time = 0.0;
+    if (!single_query_times.empty()) {
+        double total_time = std::accumulate(single_query_times.begin(),
+                                            single_query_times.end(), 0.0);
+        avg_query_time = total_time / single_query_times.size();
+    }
+    std::cout << " - Avg. Single-Flow Query Time: " << avg_query_time << " us (micro second)" << std::endl;
+
+
     std::map<uint32_t, uint32_t> true_heavy_hitters;
     std::map<uint32_t, std::map<uint32_t, uint32_t>> true_hot_quad_elements;
-
     for (const auto &[flow_id, flow_size]: flows) {
         if (flow_size >= heavy_hitter_th) {
             true_heavy_hitters[flow_id] = flow_size;
-
-            // Find true hot quadratic elements for this heavy hitter
             if (quadratic_eles.count(flow_id)) {
                 for (const auto &[ele_id, ele_size]: quadratic_eles.at(flow_id)) {
                     if (ele_size >= ele_th_phi * flow_size)
@@ -209,7 +246,6 @@ void TwoDMisraGries::evaluation(const std::vector<std::pair<uint32_t, uint32_t>>
     }
 
     // --- Heavy Hitter Evaluation ---
-
     float hh_are_sum = 0.0f;
     uint32_t hh_true_positives = 0;
     for (const auto &[id, true_size]: true_heavy_hitters) {
@@ -233,19 +269,15 @@ void TwoDMisraGries::evaluation(const std::vector<std::pair<uint32_t, uint32_t>>
 
 
     // --- Quadratic Element Evaluation ---
-
     float ele_are_sum = 0.0f;
     uint32_t ele_true_positives = 0;
-    uint32_t total_queried_hot_ele_count = 0; // queried hot quadratic element count
-    uint32_t total_true_hot_ele_count = 0; // true hot quadratic element count
-
+    uint32_t total_queried_hot_ele_count = 0;
+    uint32_t total_true_hot_ele_count = 0;
 
     for (const auto &[flow_id, queried_elements]: queried_quad_elements) {
         total_queried_hot_ele_count += queried_elements.size();
     }
 
-
-    // Calculate ARE and True Positives
     for (const auto &[flow_id, true_hot_elements]: true_hot_quad_elements) {
         if (queried_quad_elements.count(flow_id)) {
             const auto &queried_elements = queried_quad_elements.at(flow_id);
@@ -261,7 +293,6 @@ void TwoDMisraGries::evaluation(const std::vector<std::pair<uint32_t, uint32_t>>
     }
 
 
-
     float ele_are = (ele_true_positives > 0) ? ele_are_sum / ele_true_positives : 0.0f;
     float ele_precision = (total_queried_hot_ele_count > 0) ? static_cast<float>(ele_true_positives) /
                                                               total_queried_hot_ele_count : 0.0f;
@@ -270,7 +301,7 @@ void TwoDMisraGries::evaluation(const std::vector<std::pair<uint32_t, uint32_t>>
     float ele_f1 = (ele_precision + ele_recall > 0) ? 2 * (ele_precision * ele_recall) / (ele_precision + ele_recall)
                                                     : 0.0f;
 
-    std::cout << " - Heavy Quadratic Ele Metrics | ";
+    std::cout << " - Heavy Quadratic Element Metrics | ";
     std::cout << "ARE: " << ele_are << ", ";
     std::cout << "F1: " << ele_f1 << "\n";
 

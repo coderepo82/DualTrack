@@ -2,7 +2,7 @@
 
 ## Project Structure
 
-This project implements several algorithms for joint heavy hitter and heavy quadratic element identification, including DualSketch, DUET[1], CSSCHH[2], GlobalHH[3], and 2D-MG[4].  
+This project implements several algorithms for joint heavy hitter and heavy quadratic element identification, including DualSketch, DUET[1], GlobalHH[2], 2D-MG[3], CocoSketch[4], and Hyper-USS[5].  
 
 The directory structure is as follows:
 
@@ -10,23 +10,27 @@ The directory structure is as follows:
 Cpp/
 ├── CMakeLists.txt
 ├── main.cpp
-├── MurmurHash3.cpp
+├── CocoSketch.cpp
 ├── CountMin.cpp
-├── DUET.cpp
+├── CUSketch.cpp
 ├── DualSketch.cpp
-├── CSSCHH.cpp
+├── DUET_CU.cpp
 ├── GlobalHH.cpp
+├── HyperUSS.cpp
+├── MurmurHash3.cpp
 ├── TwoDMisraGries.cpp
-├── Utils.cpp
+├── utils.cpp
 └── header/
-    ├── DUET.h
+    ├── CocoSketch.h
+    ├── CountMin.h
+    ├── CUSketch.h
     ├── DualSketch.h
-    ├── CSSCHH.h
+    ├── DUET_CU.h
     ├── GlobalHH.h
-    ├── TwoDMisraGries.h
-    ├── utils.h
+    ├── HyperUSS.h
     ├── MurmurHash3.h
-    └── CountMin.h
+    ├── TwoDMisraGries.h
+    └── utils.h
 ```
 
 ## Implementation and Environment
@@ -48,12 +52,16 @@ After compilation, an executable file named `HH_QuadraticEle` will be generated 
 ./HH_QuadraticEle
 ```
 
+> **Note**: Before building and running, please update the dataset file paths in both `loadDataSet` functions in `main.cpp` to your local paths, or write your own data loading function to test with your own dataset.
+
 ## References
 
 > [1] Jiaqian Liu, Haipeng Dai, Rui Xia, Meng Li, Ran Ben Basat, Rui Li, and Guihai Chen. Duet: A generic framework for finding special quadratic elements in data streams. In Proceedings of the ACM Web Conference 2022, pages 2989–2997, 2022.
 > 
-> [2] Italo Epicoco, Massimo Cafaro, and Marco Pulimeno. Fast and accurate mining of correlated heavy hitters. Data Mining and Knowledge Discovery, 32(1):162–186, 2018.
+> [2] Katsiaryna Mirylenka, Themis Palpanas, Graham Cormode, and Divesh Srivastava. Finding interesting correlations with conditional heavy hitters. In 2013 IEEE 29th International Conference on Data Engineering (ICDE), pages 1069–1080. IEEE, 2013.
 > 
-> [3] Katsiaryna Mirylenka, Themis Palpanas, Graham Cormode, and Divesh Srivastava. Finding interesting correlations with conditional heavy hitters. In 2013 IEEE 29th International Conference on Data Engineering (ICDE), pages 1069–1080. IEEE, 2013.
+> [3] Bibudh Lahiri, Arko Provo Mukherjee, and Srikanta Tirthapura. Identifying correlated heavy-hitters in a two-dimensional data stream. Data mining and knowledge discovery, 30(4):797–818, 2016.
 > 
-> [4] Bibudh Lahiri, Arko Provo Mukherjee, and Srikanta Tirthapura. Identifying correlated heavy-hitters in a two-dimensional data stream. Data mining and knowledge discovery, 30(4):797–818, 2016.
+> [4] Ruijie Miao, Yinda Zhang, Zihao Zheng, Ruixin Wang, Ruwen Zhang, Tong Yang, Zaoxing Liu, and Junchen Jiang. CocoSketch: High-performance sketch-based measurement over arbitrary partial key query[J]. IEEE/ACM Transactions on Networking, 2023, 31(6): 2653-2668.
+> 
+> [5] Ce Zheng, Zhouran Shi, Ruijie Miao, Wenpu Liu, Tong Yang,  Bin Cui,  and Steve Uhlig. Answering Subset Query Over Multi-Attribute Data Streams Using Hyper-USS[J]. IEEE Transactions on Knowledge and Data Engineering, 2025.

@@ -4,24 +4,20 @@
 #include <fstream>
 #include <sstream>
 #include <chrono>
-#include <unordered_map>
-#include <unordered_set>
 #include <string>
 #include <utility>
-#include <iomanip>
 #include <map>
-#include <set>
-#include <cstdint>
-#include "header/GlobalHH.h"
-#include "header/TwoDMisraGries.h"
 
 
 #ifdef _WIN32
 //#include <winsock2.h>
 #include <optional>
 #include "header/DualSketch.h"
-#include "header/DUET.h"
-#include "header/CSSCHH.h"
+#include "header/CocoSketch.h"
+#include "header/HyperUSS.h"
+#include "header/DUET_CU.h"
+#include "header/GlobalHH.h"
+#include "header/TwoDMisraGries.h"
 
 #pragma comment(lib, "ws2_32.lib")
 #else
@@ -30,7 +26,7 @@
 
 
 /**
- * @brief Loads the CAIDA 2019 dataset from specified files.
+ * @brief Loads the CAIDA dataset from files.
  * @return A tuple containing three collections:
  * 1. std::vector<std::pair<uint32_t, uint32_t>>: The raw dataset of (source_ip, dest_ip) pairs.
  * 2. std::map<uint32_t, uint32_t>: The true count for each flow (source IP).
@@ -40,10 +36,10 @@
 std::tuple<std::vector<std::pair<uint32_t, uint32_t>>,
         std::map<uint32_t, uint32_t>,
         std::map<uint32_t, std::map<uint32_t, uint32_t>>> loadDataSetCAIDA() {
+
+    // ==== Please change the following path to your dataset files.
     std::vector<std::string> file_paths = {
-            "./dataset/CAIDA2019/file1.txt",
-            "./dataset/CAIDA2019/file2.txt",
-            // your dataset file list
+            "../dataset/CAIDA_demo.txt",
     };
 
     std::vector<std::pair<uint32_t, uint32_t>> data;
@@ -112,103 +108,16 @@ std::tuple<std::vector<std::pair<uint32_t, uint32_t>>,
             data.emplace_back(src_ip_int, dst_ip_int);
             true_flow_size[src_ip_int]++;
             true_element_size[src_ip_int][dst_ip_int]++;
+
             total_data_num++;
         }
 
         std::cout << file_path << " is loaded." << std::endl;
     }
 
-    std::cout << file_paths.size() << " data loaded.\n"
-              << "Totaling packets: " << total_data_num
-              << ", Unique flows (src_ip as flow label): " << true_flow_size.size() << std::endl;
-
-    return std::make_tuple(data, true_flow_size, true_element_size);
-}
-
-
-/**
- * @brief Loads the MAWI dataset from specified files.
- * @return A tuple containing three collections:
- * 1. std::vector<std::pair<uint32_t, uint32_t>>: The raw dataset of (source_ip, dest_ip) pairs.
- * 2. std::map<uint32_t, uint32_t>: The true count for each flow (source IP).
- * 3. std::map<uint32_t, std::map<uint32_t, uint32_t>>: The true count for each element (dest IP)
- * within each flow (source IP).
- */
-std::tuple<
-        std::vector<std::pair<uint32_t, uint32_t>>,
-        std::map<uint32_t, uint32_t>,
-        std::map<uint32_t, std::map<uint32_t, uint32_t>>
-> loadDataSetMAWI() {
-    std::vector<std::string> file_paths = {
-            // your dataset file list
-            "./dataset/MAWI2024/parsed_mawi_2024.csv",
-    };
-
-    std::vector<std::pair<uint32_t, uint32_t>> data;
-    std::map<uint32_t, uint32_t> true_flow_size;
-    std::map<uint32_t, std::map<uint32_t, uint32_t>> true_element_size;
-    uint64_t total_data_num = 0;
-
-    auto parse_ip = [](const std::string &ip_str) -> std::optional<uint32_t> {
-        std::stringstream ss(ip_str);
-        uint32_t result = 0;
-        int part;
-
-        for (int i = 0; i < 4; ++i) {
-            if (!(ss >> part)) return std::nullopt;
-            if (part < 0 || part > 255) return std::nullopt;
-            result = (result << 8) | part;
-            if (i < 3) {
-                if (ss.peek() != '.') return std::nullopt;
-                ss.ignore();
-            }
-        }
-
-        if (ss.rdbuf()->in_avail() != 0) return std::nullopt;
-        return result;
-    };
-
-    for (const auto &file_path: file_paths) {
-        std::ifstream file(file_path);
-        if (!file.is_open()) {
-            std::cerr << "Failed to open file: " << file_path << std::endl;
-            continue;
-        }
-
-        std::string line;
-        if (!std::getline(file, line)) {
-            std::cerr << "Empty file: " << file_path << std::endl;
-            continue;
-        }
-
-        while (std::getline(file, line)) {
-            std::stringstream ss(line);
-            std::string src_ip_str, dst_ip_str;
-
-            // Assumes field order is: src_ip,dst_ip,...
-            if (!std::getline(ss, src_ip_str, ',')) continue;
-            if (!std::getline(ss, dst_ip_str, ',')) continue;
-
-            auto src_ip_opt = parse_ip(src_ip_str);
-            auto dst_ip_opt = parse_ip(dst_ip_str);
-            if (!src_ip_opt || !dst_ip_opt) continue;
-
-            uint32_t src_ip = src_ip_opt.value();
-            uint32_t dst_ip = dst_ip_opt.value();
-
-            if (src_ip == 0 || dst_ip == 0) continue;
-
-            data.emplace_back(src_ip, dst_ip);
-            true_flow_size[src_ip]++;
-            true_element_size[src_ip][dst_ip]++;
-            total_data_num++;
-        }
-
-        std::cout << "Loaded file: " << file_path << std::endl;
-    }
-
-    std::cout << "Total data: " << total_data_num;
-    std::cout << ", Unique flows (src_ip as flow ID): " << true_flow_size.size() << std::endl;
+    std::cout << file_paths.size() << " files loaded.\n"
+              << "Totaling data items: " << total_data_num
+              << ", Unique flows (src_ip as flow ID): " << true_flow_size.size() << std::endl;
 
     return std::make_tuple(data, true_flow_size, true_element_size);
 }
@@ -218,13 +127,9 @@ std::tuple<std::vector<std::pair<uint32_t, uint32_t>>,
         std::map<uint32_t, uint32_t>,
         std::map<uint32_t, std::map<uint32_t, uint32_t>>> loadDatasetFreqItemMining() {
 
+    // ==== Please change the following path to your dataset files.
     std::vector<std::string> file_paths = {
-            "./dataset/Frequent Itemset Mining Dataset Repository/kosarak.dat",
-            "./dataset/Frequent Itemset Mining Dataset Repository/pumsb.dat",
-            "./dataset/Frequent Itemset Mining Dataset Repository/pumsb_star.dat",
-            "./dataset/Frequent Itemset Mining Dataset Repository/T10I4D100K.dat",
-            "./dataset/Frequent Itemset Mining Dataset Repository/T40I10D100K.dat",
-            "./dataset/Frequent Itemset Mining Dataset Repository/webdocs.dat",
+            "../dataset/kosarak.dat",
     };
 
     std::vector<std::pair<uint32_t, uint32_t>> data;
@@ -284,64 +189,8 @@ std::tuple<std::vector<std::pair<uint32_t, uint32_t>>,
         }
     }
 
-    std::cout << "All data is loaded, totaling data: " << total_data_num << std::endl;
+    std::cout << "Frequent Itemset Mining Dataset loaded, totaling data: " << total_data_num << std::endl;
     std::cout << "Unique flows: " << flow_true_count.size() << std::endl;
-
-    return std::make_tuple(data, flow_true_count, flow_element_true_count);
-}
-
-
-std::tuple<std::vector<std::pair<uint32_t, uint32_t>>,
-        std::map<uint32_t, uint32_t>,
-        std::map<uint32_t, std::map<uint32_t, uint32_t>>> loadSyntheticDataset() {
-
-    std::vector<std::string> file_paths = {
-            "./dataset/SyntheticDataset/skewed_dataset_zipf01.txt"
-    };
-
-    std::vector<std::pair<uint32_t, uint32_t>> data;
-    std::map<uint32_t, uint32_t> flow_true_count;
-    std::map<uint32_t, std::map<uint32_t, uint32_t>> flow_element_true_count;
-
-    uint64_t total_data_num = 0;
-
-    for (const auto &file_path: file_paths) {
-        std::ifstream file(file_path);
-        if (!file.is_open()) {
-            std::cerr << "Failed to open file: " << file_path << '\n';
-            continue;
-        }
-
-        std::string line;
-        while (std::getline(file, line)) {
-            std::istringstream iss(line);
-            std::string key_str, ele_str;
-            if (!(iss >> key_str >> ele_str)) continue;
-
-            try {
-                uint32_t key_int = static_cast<uint32_t>(std::stoul(key_str)) + 1;
-                uint32_t ele_int = static_cast<uint32_t>(std::stoul(ele_str)) + 1;
-
-                if (key_int == 0 || ele_int == 0) continue;
-
-                data.emplace_back(key_int, ele_int);
-
-                flow_true_count[key_int]++;
-                flow_element_true_count[key_int][ele_int]++;
-
-                ++total_data_num;
-            }
-            catch (const std::exception &e) {
-                std::cerr << "Parse error in file " << file_path
-                          << " line: \"" << line << "\" — " << e.what() << '\n';
-            }
-        }
-        std::cout << file_path << " is loaded.\n";
-    }
-
-    std::cout << file_paths.size() << " files data loaded.\n"
-              << "Totaling: " << total_data_num
-              << ", Unique flows: " << flow_true_count.size() << std::endl;
 
     return std::make_tuple(data, flow_true_count, flow_element_true_count);
 }
@@ -353,17 +202,17 @@ int main() {
     auto start_time = std::chrono::steady_clock::now();
 
     auto [dataset, flows, quadratic_eles] = loadDataSetCAIDA();
-//    auto [dataset, flows, quadratic_eles] = loadDataSetMAWI();
 //    auto [dataset, flows, quadratic_eles] = loadDatasetFreqItemMining();
-//    auto [dataset, flows, quadratic_eles] = loadSyntheticDataset();
 
+
+    std::vector<uint32_t> memo_kb_values = {100}; // memory in KB
     std::vector<float> heavy_hitter_th_values = {0.0001}; // phi_1
     std::vector<float> quad_ele_th_values = {0.1}; // phi_2
-    std::vector<uint32_t> memo_kb_values = {100, 200, 300, 400}; // memory in KB
 
-    for (float hh_th_ratio: heavy_hitter_th_values) {
-        for (float ele_th_phi: quad_ele_th_values) {
-            for (uint32_t memo_kb: memo_kb_values) {
+
+    for (uint32_t memo_kb: memo_kb_values) {
+        for (float hh_th_ratio: heavy_hitter_th_values) {
+            for (float ele_th_phi: quad_ele_th_values) {
 
                 uint32_t heavy_hitter_th = hh_th_ratio * dataset.size();
 
@@ -377,9 +226,9 @@ int main() {
                 dualSketch->evaluation(dataset, flows, quadratic_eles, heavy_hitter_th, ele_th_phi);
                 delete dualSketch;
 
-                auto *duet = new DUET(memo_kb);
-                duet->evaluation(dataset, flows, quadratic_eles, heavy_hitter_th, ele_th_phi);
-                delete duet;
+                auto *duet_cu = new DUET_CU(memo_kb);
+                duet_cu->evaluation(dataset, flows, quadratic_eles, heavy_hitter_th, ele_th_phi);
+                delete duet_cu;
 
                 auto *global_hh = new GlobalHH(memo_kb);
                 global_hh->evaluation(dataset, flows, quadratic_eles, heavy_hitter_th, ele_th_phi);
@@ -389,9 +238,13 @@ int main() {
                 twod_mg->evaluation(dataset, flows, quadratic_eles, heavy_hitter_th, ele_th_phi);
                 delete twod_mg;
 
-                auto *css_chh = new CSSCHH(memo_kb);
-                css_chh->evaluation(dataset, flows, quadratic_eles, heavy_hitter_th, ele_th_phi);
-                delete css_chh;
+                auto *coco = new CocoSketch(memo_kb);
+                coco->evaluation(dataset, flows, quadratic_eles, heavy_hitter_th, ele_th_phi);
+                delete coco;
+
+                auto *hyperUSS = new HyperUSS(memo_kb);
+                hyperUSS->evaluation(dataset, flows, quadratic_eles, heavy_hitter_th, ele_th_phi);
+                delete hyperUSS;
 
             }
         }

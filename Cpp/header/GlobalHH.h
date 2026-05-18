@@ -22,7 +22,7 @@ private:
 
     float cm_ratio;
 
-    CountMin* count_min; // use a count-min for flow size estimation, as did in DUET
+    CountMin* count_min; // use a count-min for flow size estimation, as did in DUET_CM
 
     // an approximate implementation of space-saving
     std::vector<Entry> space_saving;
@@ -43,11 +43,12 @@ public:
     std::pair<std::map<uint32_t, uint32_t>,
             std::map<uint32_t, std::map<uint32_t, uint32_t>>> query(uint32_t heavy_hitter_th, float phi);
 
+    std::pair<uint32_t, std::map<uint32_t, uint32_t>> querySingleFlow(uint32_t flow_id);
+
     void evaluation(const std::vector<std::pair<uint32_t, uint32_t>>& dataset,
                     const std::map<uint32_t, uint32_t>& flows,
                     std::map<uint32_t, std::map<uint32_t, uint32_t>> quadratic_eles,
                     uint32_t heavy_hitter_th, float phi);
-
 
 };
 
