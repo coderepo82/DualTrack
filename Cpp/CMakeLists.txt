@@ -9,10 +9,14 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CMAKE_CXX_FLAGS_RELEASE}")
 
 add_executable(HH_QuadraticEle main.cpp
         MurmurHash3.cpp
-        header/DualSketch.h
-        DualSketch.cpp
+        header/DualTrack.h
+        DualTrack.cpp
+        header/DualTrackDWay.h
+        DualTrackDWay.cpp
+        header/DualTrackNoLoss.h
+        DualTrackNoLoss.cpp
         header/utils.h
-        Utils.cpp
+        utils.cpp
         header/GlobalHH.h
         GlobalHH.cpp
         header/TwoDMisraGries.h

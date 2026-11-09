@@ -1,29 +1,22 @@
-
-#include <iostream>
-#include <vector>
-#include <fstream>
-#include <sstream>
 #include <chrono>
-#include <string>
-#include <utility>
+#include <cstdint>
+#include <fstream>
+#include <iostream>
 #include <map>
+#include <sstream>
+#include <string>
+#include <tuple>
+#include <utility>
+#include <vector>
 
-
-#ifdef _WIN32
-//#include <winsock2.h>
-#include <optional>
-#include "header/DualSketch.h"
+#include "header/DualTrack.h"
+#include "header/DualTrackDWay.h"
+#include "header/DualTrackNoLoss.h"
 #include "header/CocoSketch.h"
 #include "header/HyperUSS.h"
 #include "header/DUET_CU.h"
 #include "header/GlobalHH.h"
 #include "header/TwoDMisraGries.h"
-
-#pragma comment(lib, "ws2_32.lib")
-#else
-#include <arpa/inet.h>
-#endif
-
 
 /**
  * @brief Loads the CAIDA dataset from files.
@@ -37,9 +30,9 @@ std::tuple<std::vector<std::pair<uint32_t, uint32_t>>,
         std::map<uint32_t, uint32_t>,
         std::map<uint32_t, std::map<uint32_t, uint32_t>>> loadDataSetCAIDA() {
 
-    // ==== Please change the following path to your dataset files.
+    // Please change the following paths to your dataset files.
     std::vector<std::string> file_paths = {
-            "../dataset/CAIDA_demo.txt",
+        "../../dataset/CAIDA_demo.txt",
     };
 
     std::vector<std::pair<uint32_t, uint32_t>> data;
@@ -122,14 +115,13 @@ std::tuple<std::vector<std::pair<uint32_t, uint32_t>>,
     return std::make_tuple(data, true_flow_size, true_element_size);
 }
 
-
 std::tuple<std::vector<std::pair<uint32_t, uint32_t>>,
         std::map<uint32_t, uint32_t>,
         std::map<uint32_t, std::map<uint32_t, uint32_t>>> loadDatasetFreqItemMining() {
 
-    // ==== Please change the following path to your dataset files.
+    // Please change the following paths to your dataset files.
     std::vector<std::string> file_paths = {
-            "../dataset/kosarak.dat",
+        "../../dataset/kosarak.dat",
     };
 
     std::vector<std::pair<uint32_t, uint32_t>> data;
@@ -162,12 +154,9 @@ std::tuple<std::vector<std::pair<uint32_t, uint32_t>>,
                 numbers.push_back(number);
             }
 
-            if (numbers.size() < 1) {
-                continue;
-            }
-
+            // A pair requires two IDs; never fabricate one or read past the row.
             if (numbers.size() < 2) {
-                numbers[0] = (rand() % 32767) + 1;
+                continue;
             }
 
             try {
@@ -195,25 +184,31 @@ std::tuple<std::vector<std::pair<uint32_t, uint32_t>>,
     return std::make_tuple(data, flow_true_count, flow_element_true_count);
 }
 
-
 int main() {
 
-    std::cout << "Experiment starts ..." << std::endl;
+    std::cout << "DualTrack experiment starts ..." << std::endl;
     auto start_time = std::chrono::steady_clock::now();
 
     auto [dataset, flows, quadratic_eles] = loadDataSetCAIDA();
 //    auto [dataset, flows, quadratic_eles] = loadDatasetFreqItemMining();
 
+    if (dataset.empty()) {
+        std::cerr << "Experiment aborted: no valid data was loaded. "
+                     "Check dataset paths and file contents." << std::endl;
+        return 1;
+    }
 
     std::vector<uint32_t> memo_kb_values = {100}; // memory in KB
     std::vector<float> heavy_hitter_th_values = {0.0001}; // phi_1
     std::vector<float> quad_ele_th_values = {0.1}; // phi_2
 
+    // Enable the supplementary experiments as needed.
+    constexpr bool run_no_loss_experiment = false;
+    constexpr bool run_dway_experiment = false;
 
     for (uint32_t memo_kb: memo_kb_values) {
         for (float hh_th_ratio: heavy_hitter_th_values) {
             for (float ele_th_phi: quad_ele_th_values) {
-
                 uint32_t heavy_hitter_th = hh_th_ratio * dataset.size();
 
                 std::cout << "\nHeavy hitter th = " << heavy_hitter_th
@@ -222,34 +217,48 @@ int main() {
                           << ", memo_kb = " << memo_kb
                           << std::endl;
 
-                auto *dualSketch = new DualSketch(memo_kb);
-                dualSketch->evaluation(dataset, flows, quadratic_eles, heavy_hitter_th, ele_th_phi);
-                delete dualSketch;
+                auto *dualTrack = new DualTrack(memo_kb);
+                const uint32_t seed = dualTrack->getHashSeed();
+                dualTrack->evaluation(dataset, flows, quadratic_eles, heavy_hitter_th, ele_th_phi);
+                delete dualTrack;
 
-                auto *duet_cu = new DUET_CU(memo_kb);
+                auto* duet_cu = new DUET_CU(memo_kb);
                 duet_cu->evaluation(dataset, flows, quadratic_eles, heavy_hitter_th, ele_th_phi);
                 delete duet_cu;
 
-                auto *global_hh = new GlobalHH(memo_kb);
+                auto* global_hh = new GlobalHH(memo_kb);
                 global_hh->evaluation(dataset, flows, quadratic_eles, heavy_hitter_th, ele_th_phi);
                 delete global_hh;
 
-                auto *twod_mg = new TwoDMisraGries(memo_kb);
+                auto* twod_mg = new TwoDMisraGries(memo_kb);
                 twod_mg->evaluation(dataset, flows, quadratic_eles, heavy_hitter_th, ele_th_phi);
                 delete twod_mg;
 
-                auto *coco = new CocoSketch(memo_kb);
+                auto* coco = new CocoSketch(memo_kb);
                 coco->evaluation(dataset, flows, quadratic_eles, heavy_hitter_th, ele_th_phi);
                 delete coco;
 
-                auto *hyperUSS = new HyperUSS(memo_kb);
+                auto* hyperUSS = new HyperUSS(memo_kb);
                 hyperUSS->evaluation(dataset, flows, quadratic_eles, heavy_hitter_th, ele_th_phi);
                 delete hyperUSS;
+
+                if (run_no_loss_experiment) {
+                    DualTrackNoLoss no_loss(memo_kb, seed);
+                    no_loss.evaluation(dataset, flows, quadratic_eles,
+                                       heavy_hitter_th, ele_th_phi);
+                }
+
+                if (run_dway_experiment) {
+                    for (uint32_t d : {2u, 3u, 4u, 5u}) {
+                        DualTrackDWay dual_variant(memo_kb, d, seed);
+                        dual_variant.evaluation(dataset, flows, quadratic_eles,
+                                                heavy_hitter_th, ele_th_phi);
+                    }
+                }
 
             }
         }
     }
-
 
     auto end_time = std::chrono::steady_clock::now();
     auto elapsed_time = std::chrono::duration_cast<std::chrono::seconds>(end_time - start_time).count();
@@ -259,4 +268,3 @@ int main() {
 
     return 0;
 }
-

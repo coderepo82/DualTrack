@@ -1,4 +1,4 @@
-#include "header/DualSketch.h"
+#include "header/DualTrack.h"
 #include <cmath>
 #include <iostream>
 #include <vector>
@@ -9,7 +9,7 @@
 #include <random>
 #include <chrono>
 
-DualSketch::DualSketch(float memory_kb) {
+DualTrack::DualTrack(float memory_kb) {
 
     k = 32;
     m_ht_frac = 0.6; // fraction of memory for HT
@@ -17,10 +17,14 @@ DualSketch::DualSketch(float memory_kb) {
 
     rand_seed = generateSeeds32(1)[0];
 
+    // the total bits of each bucket in HT.
+    // Five fields: F, U, C, V, D; each is 32 bits.
     uint32_t ht_bucket_bits = 32 + 32 + 32 + 32 + 32;
     float memo_kb_ht = memory_kb * m_ht_frac;
     m1 = static_cast<uint32_t>(std::round(memo_kb_ht * 1024 * 8 / ht_bucket_bits));
 
+    // the total bits of each Cell in QT.
+    // 3 fields: E, R, P; E and R are 32 bits, P is log_2(m1)
     const uint32_t qt_cell_bits = 32 + 32 + static_cast<uint32_t>(std::ceil(std::log2(m1)));
     float memo_kb_qt = memory_kb - memo_kb_ht;
     m2 = static_cast<uint32_t>(std::round(memo_kb_qt * 1024 * 8 / qt_cell_bits));
@@ -29,15 +33,35 @@ DualSketch::DualSketch(float memory_kb) {
     quad_table.resize(m2);
 }
 
+DualTrack::DualTrack(float memory_kb, uint32_t k_val, float m_frac, uint32_t method_code) {
 
+    k = k_val;
+    m_ht_frac = m_frac; // fraction of memory for HT
+    method = method_code;
 
+    rand_seed = generateSeeds32(1)[0];
 
-DualSketch::~DualSketch() {
+    // the total bits of each bucket in HT.
+    // Five fields: F, U, C, V, D; each is 32 bits.
+    uint32_t ht_bucket_bits = 32 + 32 + 32 + 32 + 32;
+    float memo_kb_ht = memory_kb * m_ht_frac;
+    m1 = static_cast<uint32_t>(std::round(memo_kb_ht * 1024 * 8 / ht_bucket_bits));
+
+    // the total bits of each Cell in QT.
+    // 3 fields: E, R, P; E and R are 32 bits, P is log_2(m1)
+    const uint32_t qt_cell_bits = 32 + 32 + static_cast<uint32_t>(std::ceil(std::log2(m1)));
+    float memo_kb_qt = memory_kb - memo_kb_ht;
+    m2 = static_cast<uint32_t>(std::round(memo_kb_qt * 1024 * 8 / qt_cell_bits));
+
+    heavy_table.resize(m1);
+    quad_table.resize(m2);
 }
 
+DualTrack::~DualTrack() {
+}
 
 // x is flow label, y is element label, (x, y) equals (f, e)
-void DualSketch::update(uint32_t x, uint32_t y) {
+void DualTrack::update(uint32_t x, uint32_t y) {
 
     uint32_t hash_val = 0;
     MurmurHash3_x86_32(&x, sizeof(x), rand_seed, &hash_val);
@@ -57,9 +81,6 @@ void DualSketch::update(uint32_t x, uint32_t y) {
                 quad_table[j].E = y;
                 quad_table[j].R = 1;
                 quad_table[j].P = i;
-                // For implementation convenience, P stores the bucket index of its parent flow in HT.
-                // Storing the parent flow ID and storing the bucket index of its parent flow are the same,
-                // because we can directly obtain the parent flow ID through this bucket index.
 
                 heavy_table[i].F = x;
                 heavy_table[i].U = heavy_table[i].D;
@@ -92,7 +113,7 @@ void DualSketch::update(uint32_t x, uint32_t y) {
             heavy_table[i].C = 1;
             heavy_table[i].V = 0;
 
-            if (idx_clear == i) return;
+            if (idx_clear == i) return; // In theory, this should never happen, just for code robustness.
 
             uint32_t x_clear = heavy_table[idx_clear].F;
             uint32_t hash_val_tmp = 0;
@@ -100,10 +121,10 @@ void DualSketch::update(uint32_t x, uint32_t y) {
             uint32_t j_tmp = hash_val_tmp % (m2 - k + 1);
 
             for (uint32_t j = j_tmp; j < (j_tmp + k); ++j) {
-                if (quad_table[j].P == idx_clear)
+                // Empty cells have P = 0 and are not children of HT slot 0.
+                if (quad_table[j].E != 0 && quad_table[j].P == idx_clear)
                     return;
             }
-
 
             heavy_table[idx_clear].F = 0;
             heavy_table[idx_clear].U = 0;
@@ -114,7 +135,6 @@ void DualSketch::update(uint32_t x, uint32_t y) {
         }
         return;
     }
-
 
     // Case 2: HT[i] is not empty, and HT[i].F == x
     if (heavy_table[i].F == x) {
@@ -179,7 +199,8 @@ void DualSketch::update(uint32_t x, uint32_t y) {
             MurmurHash3_x86_32(&x_clear, sizeof(x_clear), rand_seed, &hash_val_tmp);
             uint32_t j_tmp = hash_val_tmp % (m2 - k + 1);
             for (uint32_t j = j_tmp; j < (j_tmp + k); ++j) {
-                if (quad_table[j].P == idx_clear) {
+                // Empty cells have P = 0 and are not children of HT slot 0.
+                if (quad_table[j].E != 0 && quad_table[j].P == idx_clear) {
                     return;
                 }
             }
@@ -195,7 +216,11 @@ void DualSketch::update(uint32_t x, uint32_t y) {
     }
 
     // Case 3: HT[i] is not empty, but HT[i].F != x
+
     else {
+        // ------------------------------------------------------------------------
+        // Empty the bucket and drop the arriving (x, y).
+        // ------------------------------------------------------------------------
 
         heavy_table[i].C--;
         heavy_table[i].V++;
@@ -234,11 +259,8 @@ void DualSketch::update(uint32_t x, uint32_t y) {
 
 }
 
-
-
-
 /**
- * @brief Queries DualSketch to retrieve heavy hitters and their quadratic elements.
+ * @brief Queries DualTrack to retrieve heavy hitters and their quadratic elements.
  * @return A pair of maps.
  * 1st map stores heavy hitters: ID (uint32_t) -> estimated frequency (uint32_t).
  * 2nd map stores hot quadratic elements for each heavy hitter:
@@ -246,7 +268,7 @@ void DualSketch::update(uint32_t x, uint32_t y) {
  * The inner map stores element (uint32_t) -> frequency (uint32_t).
  */
 std::pair<std::map<uint32_t, uint32_t>,
-        std::map<uint32_t, std::map<uint32_t, uint32_t>>> DualSketch::query(uint32_t heavy_hitter_th) {
+        std::map<uint32_t, std::map<uint32_t, uint32_t>>> DualTrack::query(uint32_t heavy_hitter_th) {
     std::map<uint32_t, uint32_t> heavy_hitters;
     std::map<uint32_t, std::map<uint32_t, uint32_t>> quad_elements;
 
@@ -307,16 +329,15 @@ std::pair<std::map<uint32_t, uint32_t>,
     return {heavy_hitters, quad_elements};
 }
 
-
 /**
- * @brief Queries the Sketch for a single specified flow.
+ * @brief Queries DualTrack for a single specified flow.
  * @param flow_id The ID of the flow to query (uint32_t).
  * @return A pair of values:
  * 1st: estimated frequency of the specified flow (uint32_t).
  * 2nd: map of elements for this flow (element id -> element frequency).
  */
 std::pair<uint32_t, std::map<uint32_t, uint32_t>>
-DualSketch::querySingleFlow(uint32_t flow_id) {
+DualTrack::querySingleFlow(uint32_t flow_id) {
 
     uint32_t estimated_frequency = 0;
     std::map<uint32_t, uint32_t> quad_elements;
@@ -368,14 +389,15 @@ DualSketch::querySingleFlow(uint32_t flow_id) {
     return {estimated_frequency, quad_elements};
 }
 
-
-
-void DualSketch::evaluation(const std::vector<std::pair<uint32_t, uint32_t>> &dataset,
+void DualTrack::evaluation(const std::vector<std::pair<uint32_t, uint32_t>> &dataset,
                             const std::map<uint32_t, uint32_t> &flows,
                             std::map<uint32_t, std::map<uint32_t, uint32_t>> quadratic_eles,
                             uint32_t heavy_hitter_th, float ele_th_phi) {
 
-    std::cout << "\n" << "DualSketch:" << std::endl;
+    std::cout << "\n" << "DualTrack: (k = "<< k << ", m_ht_frac = " << m_ht_frac << ", method = "<< method << ")" << std::endl;
+    std::cout << " - HT slots: " << m1 << ", QT cells: " << m2
+              << ", hash seed: " << rand_seed << std::endl;
+    std::cout << "method: {0: lower bound, 1: upper bound, 2: arithmetic mean, 3: harmonic mean}" << std::endl;
 
     // Process the entire dataset
     auto start_update = std::chrono::high_resolution_clock::now();
@@ -387,13 +409,12 @@ void DualSketch::evaluation(const std::vector<std::pair<uint32_t, uint32_t>> &da
     double update_throughput_Mdps = (dataset.size() / 1e6) / update_duration.count();
     std::cout << " - Update Throughput: " << update_throughput_Mdps << " Mdps" << std::endl;
 
-
+    // Query all retained candidates
     auto start_query = std::chrono::high_resolution_clock::now();
     auto [queried_heavy_hitters, queried_quad_elements] = query(heavy_hitter_th);
     auto end_query = std::chrono::high_resolution_clock::now();
     auto query_duration = end_query - start_query;
     std::cout << " - Full Query Time: " << std::chrono::duration<double, std::milli>(query_duration).count() << " ms" << std::endl;
-
 
     std::vector<double> single_query_times;
     single_query_times.reserve(flows.size());
@@ -412,12 +433,13 @@ void DualSketch::evaluation(const std::vector<std::pair<uint32_t, uint32_t>> &da
     }
     std::cout << " - Avg. Single-Flow Query Time: " << avg_query_time << " us (micro second)" << std::endl;
 
-
+    // Find true heavy hitters and their hot quadratic elements
     std::map<uint32_t, uint32_t> true_heavy_hitters;
     std::map<uint32_t, std::map<uint32_t, uint32_t>> true_hot_quad_elements;
     for (const auto &[flow_id, flow_size]: flows) {
         if (flow_size >= heavy_hitter_th) {
             true_heavy_hitters[flow_id] = flow_size;
+            // Find true hot quadratic elements for this heavy hitter
             if (quadratic_eles.count(flow_id)) {
                 for (const auto &[ele_id, ele_size]: quadratic_eles.at(flow_id)) {
                     if (ele_size >= ele_th_phi * flow_size)
@@ -448,16 +470,18 @@ void DualSketch::evaluation(const std::vector<std::pair<uint32_t, uint32_t>> &da
 
     std::cout << " - Heavy Hitter Metrics | ";
     std::cout << "ARE: " << hh_are << ", ";
+    std::cout << "PR: " << hh_precision << ", ";
+    std::cout << "CR: " << hh_recall << ", ";
     std::cout << "F1: " << hh_f1 << "\n";
-
 
     // --- Quadratic Element Evaluation ---
 
     float ele_are_sum = 0.0f;
     uint32_t ele_true_positives = 0;
-    uint32_t total_queried_hot_ele_count = 0;
-    uint32_t total_true_hot_ele_count = 0;
+    uint32_t total_queried_hot_ele_count = 0; // queried hot quadratic element count
+    uint32_t total_true_hot_ele_count = 0; // true hot quadratic element count
 
+    // get queried hot quadratic elements
     std::map<uint32_t, std::map<uint32_t, uint32_t>> queried_hot_quad_elements;
     for (const auto &[flow_id, queried_elements]: queried_quad_elements) {
         uint32_t queried_flow_size = queried_heavy_hitters[flow_id];
@@ -470,8 +494,7 @@ void DualSketch::evaluation(const std::vector<std::pair<uint32_t, uint32_t>> &da
         }
     }
 
-
-
+    // Calculate ARE and True Positives
     for (const auto &[flow_id, true_hot_elements]: true_hot_quad_elements) {
         if (queried_hot_quad_elements.count(flow_id)) {
             const auto &queried_hot_elements = queried_hot_quad_elements.at(flow_id);
@@ -486,8 +509,6 @@ void DualSketch::evaluation(const std::vector<std::pair<uint32_t, uint32_t>> &da
         total_true_hot_ele_count += true_hot_elements.size();
     }
 
-
-
     float ele_are = (ele_true_positives > 0) ? ele_are_sum / ele_true_positives : 0.0f;
     float ele_precision = (total_queried_hot_ele_count > 0) ? static_cast<float>(ele_true_positives) /
                                                               total_queried_hot_ele_count : 0.0f;
@@ -496,9 +517,10 @@ void DualSketch::evaluation(const std::vector<std::pair<uint32_t, uint32_t>> &da
     float ele_f1 = (ele_precision + ele_recall > 0) ? 2 * (ele_precision * ele_recall) / (ele_precision + ele_recall)
                                                     : 0.0f;
 
-    std::cout << " - Heavy Quadratic Element Metrics | ";
+    std::cout << " - Quadratic Ele Metrics | ";
     std::cout << "ARE: " << ele_are << ", ";
+    std::cout << "PR: " << ele_precision << ", ";
+    std::cout << "CR: " << ele_recall << ", ";
     std::cout << "F1: " << ele_f1 << "\n";
 
 }
-

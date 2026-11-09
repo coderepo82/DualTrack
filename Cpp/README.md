@@ -2,7 +2,7 @@
 
 ## Project Structure
 
-This project implements several algorithms for joint heavy hitter and heavy quadratic element identification, including DualSketch, DUET[1], GlobalHH[2], 2D-MG[3], CocoSketch[4], and Hyper-USS[5].  
+This project implements several algorithms for joint heavy hitter and heavy quadratic element identification, including DualTrack, DUET[1], GlobalHH[2], 2D-MG[3], CocoSketch[4], and Hyper-USS[5].
 
 The directory structure is as follows:
 
@@ -13,7 +13,9 @@ Cpp/
 ├── CocoSketch.cpp
 ├── CountMin.cpp
 ├── CUSketch.cpp
-├── DualSketch.cpp
+├── DualTrack.cpp
+├── DualTrackDWay.cpp
+├── DualTrackNoLoss.cpp
 ├── DUET_CU.cpp
 ├── GlobalHH.cpp
 ├── HyperUSS.cpp
@@ -24,7 +26,9 @@ Cpp/
     ├── CocoSketch.h
     ├── CountMin.h
     ├── CUSketch.h
-    ├── DualSketch.h
+    ├── DualTrack.h
+    ├── DualTrackDWay.h
+    ├── DualTrackNoLoss.h
     ├── DUET_CU.h
     ├── GlobalHH.h
     ├── HyperUSS.h
@@ -53,6 +57,8 @@ After compilation, an executable file named `HH_QuadraticEle` will be generated 
 ```
 
 > **Note**: Before building and running, please update the dataset file paths in both `loadDataSet` functions in `main.cpp` to your local paths, or write your own data loading function to test with your own dataset.
+
+In `main.cpp`, set `run_no_loss_experiment` or `run_dway_experiment` to `true` to enable the corresponding variant experiment (both default to `false`). 
 
 ## References
 
