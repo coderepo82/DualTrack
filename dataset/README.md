@@ -2,7 +2,7 @@
 
 We conduct our experiments using two public datasets.  
 
-For each dataset, we provide a small demo file in this repository to help verify that the code runs correctly.  Meanwhile, we also provide official download links for users to obtain the full datasets for extended experiments.
+For each dataset, we provide a demo file in this repository to help verify that the code runs correctly. Dataset references and access links are provided below.
 
 ---
 
@@ -13,15 +13,15 @@ For each dataset, we provide a small demo file in this repository to help verify
 - **Full Dataset**: Available upon request from the official CAIDA website:  
   https://catalog.caida.org/dataset/passive_2019_pcap
 
-
-
 ---
 
 ## Frequent Itemset Mining Dataset
 
-- **Description**: This is the public datasets from the Frequent Itemset Mining Dataset repository. 
-- **Demo File**: we provide the "kosarak.dat" dataset as a demo, which contains (anonymized) click-stream data of a hungarian on-line news portal.
-- **Full Dataset**: Can be obtained from the open data archive: http://fimi.uantwerpen.be/data/
+- **Description**: Our experiments use the dataset from the Frequent Itemset Mining Implementations (FIMI) repository. 
+- **Demo File**: We provide `kosarak.dat`, which contains anonymized click-stream data from a Hungarian online news portal.
+- **Reference**: Bart Goethals and Mohammed J. Zaki. 2004. Advances in frequent itemset mining implementations: report on FIMI'03. *ACM SIGKDD Explorations Newsletter* 6, 1 (June 2004), 109-117. 
+- **Dataset Access**: Dataset descriptions and download links are also listed on the https://www.cs.rpi.edu/~zaki/Workshops/FIMI/data/
+- **Historical Download Source**: http://fimi.uantwerpen.be/data/ was the original download location used for our experiments. We retain it for provenance; if it is unavailable, consult the repository mirror and references provided here.
 
 
 
