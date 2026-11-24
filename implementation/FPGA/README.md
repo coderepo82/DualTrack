@@ -10,7 +10,7 @@ The implementation targets an XA Artix-7 XA7A100T device in the FGG484 package. 
 
 The design consists of three functional modules: hash index calculation, flow lookup and update in the HeavyTable (HT), and element lookup and update in the QuadTable (QT). A top-level module coordinates their operation and manages data input and output.
 
-The C++ source can be synthesized into Verilog using the Xilinx HLS toolchain. We also provide our synthesized Verilog code in the "verilog" directory.  
+The C++ source can be synthesized into Verilog using the Xilinx HLS toolchain. The generated Verilog files are provided in the `./verilog` directory.  
 
 ## Synthesis Results
 
