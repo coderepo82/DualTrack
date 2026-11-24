@@ -16,6 +16,7 @@ Cpp/
 ├── DualTrack.cpp
 ├── DualTrackDWay.cpp
 ├── DualTrackNoLoss.cpp
+├── DualTrackNoUpperBound.cpp
 ├── DUET_CU.cpp
 ├── GlobalHH.cpp
 ├── HyperUSS.cpp
@@ -29,6 +30,7 @@ Cpp/
     ├── DualTrack.h
     ├── DualTrackDWay.h
     ├── DualTrackNoLoss.h
+    ├── DualTrackNoUpperBound.h
     ├── DUET_CU.h
     ├── GlobalHH.h
     ├── HyperUSS.h
@@ -58,7 +60,7 @@ After compilation, an executable file named `HH_QuadraticEle` will be generated 
 
 > **Note**: Before building and running, please update the dataset file paths in both `loadDataSet` functions in `main.cpp` to your local paths, or write your own data loading function to test with your own dataset.
 
-In `main.cpp`, set `run_no_loss_experiment` or `run_dway_experiment` to `true` to enable the corresponding variant experiment (both default to `false`). 
+In `main.cpp`, set `run_no_upper_bound_experiment`, `run_no_loss_experiment`, or `run_dway_experiment` to `true` to enable the corresponding variant experiment (all default to `false`).
 
 ## References
 

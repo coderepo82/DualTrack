@@ -15,6 +15,8 @@ add_executable(HH_QuadraticEle main.cpp
         DualTrackDWay.cpp
         header/DualTrackNoLoss.h
         DualTrackNoLoss.cpp
+        header/DualTrackNoUpperBound.h
+        DualTrackNoUpperBound.cpp
         header/utils.h
         utils.cpp
         header/GlobalHH.h

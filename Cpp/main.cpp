@@ -12,6 +12,7 @@
 #include "header/DualTrack.h"
 #include "header/DualTrackDWay.h"
 #include "header/DualTrackNoLoss.h"
+#include "header/DualTrackNoUpperBound.h"
 #include "header/CocoSketch.h"
 #include "header/HyperUSS.h"
 #include "header/DUET_CU.h"
@@ -203,6 +204,7 @@ int main() {
     std::vector<float> quad_ele_th_values = {0.1}; // phi_2
 
     // Enable the supplementary experiments as needed.
+    constexpr bool run_no_upper_bound_experiment = false;
     constexpr bool run_no_loss_experiment = false;
     constexpr bool run_dway_experiment = false;
 
@@ -241,6 +243,12 @@ int main() {
                 auto* hyperUSS = new HyperUSS(memo_kb);
                 hyperUSS->evaluation(dataset, flows, quadratic_eles, heavy_hitter_th, ele_th_phi);
                 delete hyperUSS;
+
+                if (run_no_upper_bound_experiment) {
+                    DualTrackNoUpperBound no_upper_bound(memo_kb, seed);
+                    no_upper_bound.evaluation(dataset, flows, quadratic_eles,
+                                              heavy_hitter_th, ele_th_phi);
+                }
 
                 if (run_no_loss_experiment) {
                     DualTrackNoLoss no_loss(memo_kb, seed);
